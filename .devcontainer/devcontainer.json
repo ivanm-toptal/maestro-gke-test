@@ -1,0 +1,14 @@
+{
+  "name": "<GH_PROJECT>",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "remoteUser": "vscode",
+  "overrideCommand": false,
+  "customizations": {
+    "maestro-k8s": {
+      "gcpZone": "us-east1-b"
+    }
+  }
+}
