@@ -1,0 +1,32 @@
+# The kit's ignore block: what a Maestro pod writes into /workspace that is not content. The
+# launchers refuse a batch on ANY untracked file (state-check.sh, "tree clean & pushed"), so each
+# line here is a launch condition, not tidiness. scripts/ignore-block.sh appends the block line by
+# line and never removes a line of yours; the bootstrap runs it on every first message.
+
+# Maestro session state: `.maestro/*` and NOT `.maestro/` — git does not descend into an ignored
+# directory, so a directory rule would make the negation below unreachable and config.json would
+# silently never be committed.
+.maestro/*
+!.maestro/config.json
+# the worker worktrees: spawn-worker.sh puts each at .worktrees/<name>, a real checkout, not content
+.worktrees/
+# the caches pod-setup.sh points into the workspace volume (uv, Hugging Face, Playwright): gigabytes
+.caches/
+# the editor's remote server (Cursor / VS Code, serverInstallPath = /workspace)
+.cursor-server/
+.vscode-server/
+# the kit, if it is ever cloned inside the tree by mistake (the bootstrap clones it to ~/.kit)
+.kit/
+# Maestro's volume seed marker (CLI-created sessions write it into the workspace root)
+.pvc-seeded
+# this pod's parameters: orchestration/local.env.example documents the keys and IS committed
+orchestration/local.env
+# environments and test caches, wherever a worker creates them
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+# secrets live outside the tree (a file under /home/vscode); these catch a stray copy
+.env
+*.env
+*.key

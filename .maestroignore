@@ -1,0 +1,15 @@
+*
+!.devcontainer/
+!.devcontainer/**
+!.maestroignore
+!README.md
+!CLAUDE.md
+!pyproject.toml
+!src/
+!src/**
+!scripts/
+!scripts/**
+!tests/
+!tests/**
+!docs/
+!docs/**

@@ -1,0 +1,14 @@
+{
+  "remote": { "default_size": "medium", "storage": "40Gi" },
+  "scripts": {
+    "bootstrap": "orchestration/scripts/bootstrap-session.sh",
+    "ready": "cd /workspace && orchestration/scripts/bootstrap-session.sh --table-only",
+    "secrets": "cd /workspace && orchestration/scripts/fetch-secrets.sh",
+    "status": "orchestration/scripts/status.sh",
+    "state-check": "orchestration/scripts/state-check.sh",
+    "batch-start": "orchestration/scripts/batch-start.sh",
+    "batch-resume": "orchestration/scripts/batch-resume.sh",
+    "batch-chain": "orchestration/scripts/batch-chain.sh",
+    "kit-diff": "orchestration/scripts/kit-diff.sh"
+  }
+}

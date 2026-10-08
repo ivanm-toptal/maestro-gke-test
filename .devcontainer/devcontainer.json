@@ -1,5 +1,5 @@
 {
-  "name": "<GH_PROJECT>",
+  "name": "maestro-gke-test",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."
