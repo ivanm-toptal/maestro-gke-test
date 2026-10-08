@@ -125,9 +125,12 @@ else row warn "slack" "no slack CLI in this image"; fi
 #      private channel; the id is the last segment of the channel's permalink.
 SESSION_NAME=${BOOTSTRAP_SESSION:-}
 [ -z "$SESSION_NAME" ] && case "$(hostname 2>/dev/null)" in maestro-*-0) SESSION_NAME=$(hostname | sed -E 's/^maestro-//; s/-0$//');; esac
-if grep -q '^ORCH_SLACK_CHANNEL=' "$L" 2>/dev/null; then row ok "slack channel" "$(grep '^ORCH_SLACK_CHANNEL=' "$L" | tail -1 | cut -d= -f2) (from orchestration/local.env)"
-elif ! command -v slack >/dev/null 2>&1 || [ -z "$SESSION_NAME" ]; then row warn "slack channel" "not resolved: no slack CLI here, or the session name is unknown"
+REC=$(grep '^ORCH_SLACK_CHANNEL=' "$L" 2>/dev/null | tail -1 | cut -d= -f2)
+if ! command -v slack >/dev/null 2>&1 || [ -z "$SESSION_NAME" ]; then
+  if [ -n "$REC" ]; then row ok "slack channel" "$REC (from orchestration/local.env; not re-checked: no slack CLI here, or the session name is unknown)"
+  else row warn "slack channel" "not resolved: no slack CLI here, or the session name is unknown"; fi
 else
+  # resolved by name every time: a channel made again (8 October: one made by hand, then the app's) gets a new id
   CH=$(slack search --query "maestro-$SESSION_NAME" --content-types channels --channel-types private_channel,public_channel 2>/dev/null | python3 -c '
 import json, sys
 want = sys.argv[1]
@@ -138,8 +141,11 @@ for line in sys.stdin:
         if c.get("name") == want and not c.get("is_archived"):
             print(c.get("permalink", "").rstrip("/").rsplit("/", 1)[-1]); sys.exit(0)
 ' "maestro-$SESSION_NAME")
-  if [ -n "$CH" ]; then printf 'ORCH_SLACK_CHANNEL=%s\n' "$CH" >> "$L"; row ok "slack channel" "#maestro-$SESSION_NAME is $CH — written to orchestration/local.env"
-  else row warn "slack channel" "no channel #maestro-$SESSION_NAME yet: create it from the Maestro app in Slack, then rerun this script"; fi
+  if [ -n "$CH" ] && [ "$CH" = "$REC" ]; then row ok "slack channel" "#maestro-$SESSION_NAME is $CH (as orchestration/local.env says)"
+  elif [ -n "$CH" ] && [ -n "$REC" ]; then sed -i "s|^ORCH_SLACK_CHANNEL=.*|ORCH_SLACK_CHANNEL=$CH|" "$L"; row ok "slack channel" "#maestro-$SESSION_NAME is $CH now, not $REC as orchestration/local.env said — rewritten (the channel was made again)"
+  elif [ -n "$CH" ]; then printf 'ORCH_SLACK_CHANNEL=%s\n' "$CH" >> "$L"; row ok "slack channel" "#maestro-$SESSION_NAME is $CH — written to orchestration/local.env"
+  elif [ -n "$REC" ]; then row warn "slack channel" "$REC (from orchestration/local.env), but no open channel #maestro-$SESSION_NAME is visible to the pod's slack CLI now: renamed, archived, or the connector gone?"
+  else row warn "slack channel" "no channel #maestro-$SESSION_NAME yet: let the Maestro app create it (docs/TUTORIAL.md 4.2; one made by hand is not linked to the session), then rerun this script"; fi
 fi
 
 # 4b3. your laptop's ssh key, without interaction: the public keys registered on your GitHub account

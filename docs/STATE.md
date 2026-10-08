@@ -3,6 +3,8 @@
 Short, and read whole after every reset. Rewritten at every batch end; sections 2 and 3 updated at every
 landing. Ledgers are elsewhere and grepped by task id. Reset contract: docs/OPERATING.md §4.
 
+**Last reset:** 2026-10-08, the scaffold — section 2 counts landings from `f61ec8d`, the commit the layer was added onto; no batch has run yet.
+
 ## 1. Where we are (three sentences)
 The programme was scaffolded from toptal/maestro-k8s on 2026-10-08 by ivanm-toptal. Nothing has been built yet. The
 first batch is the tutorial task T-1.
@@ -12,10 +14,11 @@ Nothing yet. Format when there is: **B<n> merges, in landing order:** `<hash>` (
 did). **Direct commits, all documents:** `<hash>` … `state-check.sh` polices merges only.
 
 ## 3. In flight (must be empty at a batch end)
-**No batch in flight.** When one starts, the orchestrator's FIRST commit writes here: `**Batch B<n>:
+**Batch B0: ended** — B0 is the scaffold itself, on 2026-10-08; no batch has run yet. When one starts, the orchestrator's FIRST commit writes here: `**Batch B<n>:
 running** — started <time>, session <id>, pod <session name>, owner <who>` (the literal `running`, later
 `ended`, is the anchor the launchers read); workers (the
 `.maestro/run/*.status` names), machines (all `maestro-gke-test-*` instances and their state), worktrees.
+- Workers: none running.
 
 ## 4. The batch queue
 ### Batch B1 — T-1 alone (the tutorial task)
