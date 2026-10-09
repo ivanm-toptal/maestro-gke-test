@@ -14,11 +14,10 @@ Nothing yet. Format when there is: **B<n> merges, in landing order:** `<hash>` (
 did). **Direct commits, all documents:** `<hash>` … `state-check.sh` polices merges only.
 
 ## 3. In flight (must be empty at a batch end)
-**Batch B0: ended** — B0 is the scaffold itself, on 2026-10-08; no batch has run yet. When one starts, the orchestrator's FIRST commit writes here: `**Batch B<n>:
-running** — started <time>, session <id>, pod <session name>, owner <who>` (the literal `running`, later
-`ended`, is the anchor the launchers read); workers (the
-`.maestro/run/*.status` names), machines (all `maestro-gke-test-*` instances and their state), worktrees.
+**Batch B1: running** — started 2026-10-09 11:36 UTC, session 782f746d-88da-4ec2-878b-3720c19c5dfe, pod maestro-gke-test-0lpw, owner ivanm-toptal. (The literal `running`, later `ended`, is the anchor the launchers read.)
 - Workers: none running.
+- Machines: none; no brief of B1 declares any (every **Machines** line says `none`).
+- Worktrees: none.
 
 ## 4. The batch queue
 ### Batch B1 — T-1 alone (the tutorial task)
