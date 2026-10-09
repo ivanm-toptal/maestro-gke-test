@@ -48,3 +48,4 @@ Nothing spent.
 | results, defects, access | `docs/ledgers/RESULTS.md`, `HARDENING.md`, `ACCESS-REPORT.md` (create on first use; grep by id) |
 | machines and their ledger | `docs/ledgers/RESOURCES.md` |
 | the session | Maestro remote session `maestro-gke-test-0lpw`, project `(not recorded yet: vm-probe.sh --project writes it to orchestration/local.env)`, zone `us-east1-b` |
+| the index | `docs/README.md` |
