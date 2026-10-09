@@ -15,9 +15,9 @@ did). **Direct commits, all documents:** `<hash>` … `state-check.sh` polices m
 
 ## 3. In flight (must be empty at a batch end)
 **Batch B1: running** — started 2026-10-09 11:36 UTC, session 782f746d-88da-4ec2-878b-3720c19c5dfe, pod maestro-gke-test-0lpw, owner ivanm-toptal. (The literal `running`, later `ended`, is the anchor the launchers read.)
-- Workers: none running.
+- Workers: running — `docs-index` (T-1, branch `worker/docs-index`, worktree `/workspace/.worktrees/docs-index`, model claude-opus-5-5).
 - Machines: none; no brief of B1 declares any (every **Machines** line says `none`).
-- Worktrees: none.
+- Worktrees: `/workspace/.worktrees/docs-index`.
 
 ## 4. The batch queue
 ### Batch B1 — T-1 alone (the tutorial task)
