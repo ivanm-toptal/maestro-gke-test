@@ -46,6 +46,21 @@ keep the ones that apply, add your own.
 - **Write STATE §3's `running` line first**, or a conversation that dies early leaves a deadlock: resume refuses
   ("the batch has ended") and start refuses (an unnamed landing).
 
+## The tooling in this repository
+- **The tooling says `master`; a repository whose default branch is `main` breaks it in one loud way
+  and two silent ones.** 9 October 2026, batch B1: `land-branch.sh` exited 2 at `git checkout -q master`
+  before merging anything, so the landing was done by hand with the script's own semantics (fetch,
+  `--no-ff` merge with the message file, push, prune). The silent half is the one to watch for, because
+  nothing reports it: `status.sh` printed `0 unlanded remote branch(es)` with one unlanded, and
+  `state-check.sh`'s "landings in §2" row — the check the whole reset contract rests on — reported `ok`
+  on a `git log` that had failed. Until the fix lands (H-1 in `docs/ledgers/HARDENING.md`, batch B2),
+  check `git branch -r --no-merged origin/<default>` by hand before believing either row, and expect to
+  land by hand. Pass `--base origin/main` to `spawn-worker.sh`, whose `BASE` defaults to `origin/master`.
+- **`spawn-worker.sh` runs `uv sync` and this repository has no Python manifest.** `--no-sync` is the
+  flag; without it the spawn exits 4 before the worker ever starts. The same goes for
+  `verify-detached.sh`, which is built around `uv` and pytest: verification here is a detached worktree,
+  the branch's own guard script, and a read of the diff.
+
 ## Machines
 - **Compute Engine `start` can report DONE without the VM booting** when a zone has no capacity;
   check `lastStartTimestamp`.

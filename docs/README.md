@@ -66,6 +66,7 @@ are in `~/.kit`, not here: `~/.kit/docs/TUTORIAL.md`, `~/.kit/scripts/ignore-blo
 | Path | What it holds | Who | How |
 |---|---|---|---|
 | `orchestration/WORKER.md` | The rules every worker carries: scope, push early, machines, waits, tests, report. | an agent on a task (every worker) | whole |
+| `orchestration/QUEUE.md` | One block per batch, appended at its end: what landed, what it cost, what is next. The past tense of `docs/STATE.md`. | the orchestrator after a reset; a human browsing | by batch id |
 | `orchestration/CHAT.md` | The rules for the Maestro session's chat conversation (`ORCH_ROLE` unset): it is not the orchestrator, it turns a wish into a brief and queues it, and it starts a batch only on the owner's word. | an agent on a task (the chat conversation) | whole |
 | `orchestration/SEED.md` | The first message of a new session: clone the kit, run its bootstrap, report, then wait for the owner. | a human browsing (who pastes it) | whole |
 | `orchestration/PARAMETERS.md` | Where the scripts come from (copied verbatim from the reference programme), the per-pod parameter file they read, what each script is for, what to adapt for a non-Python repository. | a human browsing; the orchestrator after a reset | by section |
@@ -73,6 +74,7 @@ are in `~/.kit`, not here: `~/.kit/docs/TUTORIAL.md`, `~/.kit/scripts/ignore-blo
 | `orchestration/briefs/` | One brief per task: the owner's wish, which the orchestrator expands into a worker's task file. | the orchestrator after a reset | by id (the briefs STATE §4 names) |
 | `orchestration/briefs/TEMPLATE.md` | The shape of a brief: why, route, size, the mandatory **Machines** line, branch, evidence, what to do, documents, report. | a human browsing; the orchestrator after a reset | whole |
 | `orchestration/briefs/T-1-full.md` | The tutorial's first brief: this index and its guard. | the orchestrator after a reset | whole |
+| `orchestration/briefs/H-1-full.md` | B2's brief: make the orchestration scripts true of a repository whose default branch is `main` (defect H-1). | the orchestrator after a reset | whole |
 | `orchestration/scripts/` | The launchers and their helpers. Each script's header says what it does and why. | the orchestrator after a reset; a human browsing | by section (header comment) |
 | `orchestration/scripts/batch-start.sh` | Starts a batch in a fresh orchestrator conversation, after its gates (clean state, no machine on, token pinned, no live owner); `--drill` runs the reset drill. | the orchestrator after a reset; a human browsing | by section (header comment) |
 | `orchestration/scripts/batch-resume.sh` | Brings the current batch's conversation back after a pod reboot, a limit, or an early turn end. | the orchestrator after a reset | by section (header comment) |
