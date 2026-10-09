@@ -239,6 +239,99 @@ batch_state_id() {  # batch_state_id <state.md>
 }
 
 #: ---------------------------------------------------------------------------
+#: THE INBOX, and its ONE reader (task G-6)
+#: ---------------------------------------------------------------------------
+#: `orchestration/INBOX.md` is where the chat conversation writes every message
+#: from the researcher the moment it arrives, `status: new` until somebody acts
+#: on it. Writing it down was half the fix for 30 September -- a message the
+#: platform acknowledged as "Queued" and no conversation ever received; the
+#: other half is that something READS it, and two scripts do: `status.sh`
+#: shows the `new` count to every conversation, and `state-check.sh` fails a
+#: batch's close that leaves one behind. Both read it through this function,
+#: so the two cannot disagree about what `new` is.
+#:
+#: THE SHAPE IS THE FILE'S OWN HEADER, and it is a contract: an entry is a
+#: `## <UTC time> — <where> — status: <word> …` heading outside a ``` fence,
+#: whose first non-blank line is a `>` quote. The status is read by its FIRST
+#: WORD, in any case: `new` is unhandled; `done`, `lost` and `delivered` (the
+#: 30 September entry's: the platform delivered it late and it was answered)
+#: are settled. ANYTHING ELSE IS MALFORMED AND FAILS, rather than being counted
+#: one way or the other: an inbox whose count is a guess is the silence this
+#: file exists to end, and a typo'd `nwe` read as settled would be a message
+#: dropped by the reader instead of by the platform.
+#:
+#: Sets INBOX_ENTRIES, INBOX_NEW, INBOX_NEW_LINES (heading line numbers),
+#: INBOX_OLDEST and INBOX_OLDEST_LINE (the oldest `new` by its timestamp, as
+#: written), INBOX_ERROR. Returns 0 read, 1 malformed (INBOX_ERROR names the
+#: first bad line), 2 no readable file.
+batch_inbox_scan() {  # batch_inbox_scan <INBOX.md>
+    INBOX_ENTRIES=0 INBOX_NEW=0 INBOX_NEW_LINES="" INBOX_OLDEST="" INBOX_OLDEST_LINE="" INBOX_ERROR=""
+    if [ ! -r "$1" ]; then
+        INBOX_ERROR="no readable $1"
+        return 2
+    fi
+    local out rc kind cls line key ts best=""
+    # Intervals (`{4}`) are spelled out: older mawk, which some pods have,
+    # does not support them.
+    out=$(awk '
+        function err(n, msg) { printf "ERR\tline %d: %s\n", n, msg; bad = 1; exit 1 }
+        function flush() {
+            if (open && !quoted) err(open, "the entry has no \"> \" line quoting the researcher under its heading")
+            open = 0
+        }
+        BEGIN { sep = " — status: "; dash = " — " }
+        /^```/ { fence = !fence; fence_line = NR; next }
+        fence  { next }
+        /^## / {
+            flush()
+            h = substr($0, 4)
+            p = 0
+            while ((i = index(substr(h, p + 1), sep)) > 0) p += i
+            if (!p) err(NR, "the heading has no \" — status: <word>\"")
+            left = substr(h, 1, p - 1); st = substr(h, p + length(sep))
+            q = index(left, dash)
+            if (!q) err(NR, "the heading has no \" — <where it arrived> — \" between its time and its status")
+            ts = substr(left, 1, q - 1); where = substr(left, q + length(dash))
+            t = ts; sub(/^~/, "", t)
+            if (t !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) err(NR, "the heading does not begin with a UTC date, YYYY-MM-DD")
+            if (where ~ /^[ \t]*$/) err(NR, "the heading does not say where the message arrived")
+            w = st; sub(/^[ \t]+/, "", w); split(w, a, /[ \t]+/); word = tolower(a[1])
+            if (word != "new" && word != "done" && word != "lost" && word != "delivered")
+                err(NR, "status \"" a[1] "\" is none of new, done, lost, delivered")
+            hm = "00:00"
+            if (match(t, /[0-9][0-9]:[0-9][0-9]/)) hm = substr(t, RSTART, 5)
+            printf "E\t%s\t%d\t%s %s\t%s\n", word, NR, substr(t, 1, 10), hm, ts
+            open = NR; quoted = 0; seen = 0
+            next
+        }
+        open && !seen && NF { seen = 1; if ($0 ~ /^>/) quoted = 1 }
+        END {
+            if (bad) exit 1
+            if (fence) err(fence_line, "a ``` fence is never closed, so every entry after it would go unread")
+            flush()
+        }
+    ' "$1")
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        INBOX_ERROR=$(printf '%s\n' "$out" | sed -n 's/^ERR\t//p' | head -1)
+        [ -n "$INBOX_ERROR" ] || INBOX_ERROR="awk failed (rc=$rc) reading $1"
+        return 1
+    fi
+    while IFS=$'\t' read -r kind cls line key ts; do
+        [ "$kind" = E ] || continue
+        INBOX_ENTRIES=$((INBOX_ENTRIES + 1))
+        [ "$cls" = new ] || continue
+        INBOX_NEW=$((INBOX_NEW + 1))
+        INBOX_NEW_LINES="$INBOX_NEW_LINES $line"
+        if [ -z "$best" ] || [[ "$key" < "$best" ]]; then
+            best=$key INBOX_OLDEST=$ts INBOX_OLDEST_LINE=$line
+        fi
+    done <<< "$out"
+    INBOX_NEW_LINES=${INBOX_NEW_LINES# }
+    return 0
+}
+
+#: ---------------------------------------------------------------------------
 #: THE OWNER OF A BATCH, and it is a pid rather than a promise
 #: ---------------------------------------------------------------------------
 #: `.maestro/orchestrator-session` records WHICH CONVERSATION is the batch; it
@@ -291,6 +384,36 @@ batch_owner_gate() {  # batch_owner_gate <pidfile> <what-is-being-started>
         return 1
     fi
     return 0
+}
+
+#: ---------------------------------------------------------------------------
+#: THE NET BEHIND THE OWNER GATE, told apart by ORCH_ROLE (8 October)
+#: ---------------------------------------------------------------------------
+#: batch_owner_gate names the pid driving which session; this is the broad net
+#: behind it, for an orchestrator started some other way. Until 8 October it was
+#: a `pgrep` for "any claude with a session id", and on a pod where Maestro
+#: resumes the session's chat conversation as `claude --resume <id>` that is the
+#: chat itself: a teammate's pod refused every batch asked for in the chat, the
+#: dry run included, with nothing running. (Ours resumes it as `claude -r`, which
+#: that pgrep did not match, so we never saw it.) Argv is Maestro's to choose;
+#: what is ours is ORCH_ROLE in the process's environment (CLAUDE.md's triage,
+#: 30 September): the launchers start the orchestrator with
+#: ORCH_ROLE=orchestrator, spawn-agent.sh a worker with ORCH_ROLE=worker, and
+#: the chat conversation has none. ONE reader, here, so the launchers' gate and
+#: status.sh's rows cannot disagree about who is running.
+#:
+#: Prints the pids of this user's `claude` processes whose ORCH_ROLE is <role>,
+#: one per line; `none` is those without one, which are the chat conversation or
+#: a claude started by hand. Returns 0 if there is at least one, 1 if none.
+batch_claude_pids() {  # batch_claude_pids orchestrator|worker|none
+    local want=$1 p role found=1
+    for p in $(pgrep -u "$(id -u)" -f "(^|/)claude( |$)" 2>/dev/null); do
+        [ -r "/proc/$p/environ" ] || continue
+        role=$(tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | sed -n 's/^ORCH_ROLE=//p' | head -1)
+        [ "${role:-none}" = "$want" ] || continue
+        printf '%s\n' "$p"; found=0
+    done
+    return $found
 }
 
 #: Which batch a recorded session belongs to, from batch-start.sh's own append-only

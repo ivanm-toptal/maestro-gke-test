@@ -13,6 +13,7 @@
 # Exit code: 0 all clear, 3 attention owed (halted with workers, a VM left powered on,
 #            a STALE branch lock, a verification that ended `truncated`, or a VM row
 #            left UNCHECKED because orchestration/local.env lacks the project or prefix).
+#            The `inbox` row never moves it: an unhandled message is a warning.
 set -uo pipefail
 now=$(date -u +%s); attention=0
 W=${WORKSPACE:-/workspace}
@@ -21,6 +22,9 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/dev/null
 . "$HERE/orch-env.sh"
 orch_env_load "$W"
+LOG=/dev/null
+# shellcheck source=/dev/null
+. "$HERE/batch-lib.sh"
 PROJ=${CLOUDSDK_CORE_PROJECT:-${ORCH_GCP_PROJECT:-}}
 
 # --- whose values this screen is using -------------------------------------
@@ -31,7 +35,12 @@ PROJ=${CLOUDSDK_CORE_PROJECT:-${ORCH_GCP_PROJECT:-}}
 say "programme" "${ORCH_PROJECT:-UNSET (ORCH_PROJECT)} -- repo ${ORCH_REPO_NAME:-?}, GCP ${PROJ:-UNSET (ORCH_GCP_PROJECT)}, machines ${ORCH_VM_PREFIX:-UNSET (ORCH_VM_PREFIX)}*; values from $ORCH_ENV_FILE_READ"
 
 # --- the orchestrator -------------------------------------------------------
-pid=$(pgrep -u "$(id -u)" -f "claude --session-id|claude --resume|^claude$" | head -1)
+# BY ORCH_ROLE, NOT BY ARGV (8 October): the pgrep for "claude --session-id|
+# --resume" that stood here named the chat conversation a RUNNING orchestrator
+# on a pod where Maestro resumes it as `claude --resume <id>`. batch-lib.sh's
+# batch_claude_pids is the one reader of the role: this row, the chat row below
+# and the launchers' gate.
+pid=$(batch_claude_pids orchestrator | head -1)
 T=$(ls -t "$HOME"/.claude/projects/-workspace/*.jsonl 2>/dev/null | head -1)
 idle=-1; [ -n "$T" ] && idle=$(( now - $(stat -c %Y "$T") ))
 if [ -n "$pid" ]; then
@@ -47,17 +56,13 @@ say "pod tmux" "$(tmux -S /tmp/tmux-shared/maestro.sock ls 2>/dev/null | wc -l) 
 # --- the chat conversation --------------------------------------------------
 # THE ROW 30 SEPTEMBER NEEDED. Asked in Slack whether it was the single
 # orchestrator, the Maestro session's chat conversation said yes, and this
-# screen said nothing either way: the chat conversation runs as `claude -r`,
-# which the `orchestrator` pattern above does not match, and between messages it
+# screen said nothing either way: the chat conversation runs as `claude -r` or
+# `claude --resume`, Maestro's choice by version, and between messages it
 # is no process at all, because Maestro resumes it for each one. A `claude`
 # without ORCH_ROLE in its environment was started by neither launcher nor
 # spawn-agent.sh: it is the chat conversation answering a message, or a claude
 # somebody started by hand (orchestration/CHAT.md).
-chat=""
-for p in $(pgrep -u "$(id -u)" -f "(^|/)claude( |$)" 2>/dev/null); do
-    [ -r "/proc/$p/environ" ] || continue
-    tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | grep -q '^ORCH_ROLE=' || chat="$chat $p"
-done
+chat=$(batch_claude_pids none | sed 's/^/ /' | tr -d '\n')
 if [ -n "$chat" ]; then
     say "chat conversation" "answering now, no ORCH_ROLE: pid$chat (the Maestro session's chat, or a claude started by hand)"
 else
@@ -72,9 +77,6 @@ fi
 # owner, and the batch prompt tells the orchestrator to read THIS row first and
 # stop if it names somebody else.
 if [ -r "$HERE/batch-lib.sh" ]; then
-    LOG=/dev/null
-    # shellcheck source=/dev/null
-    . "$HERE/batch-lib.sh"
     if batch_owner_alive "$W/.maestro/orchestrator.pid"; then
         say "orchestrator owner" "LIVE pid=$BATCH_OWNER_PID session=$(printf '%s' "$BATCH_OWNER_SID" | cut -c1-8)"
     elif [ -r "$W/.maestro/orchestrator.pid" ]; then
@@ -82,8 +84,32 @@ if [ -r "$HERE/batch-lib.sh" ]; then
     else
         say "orchestrator owner" "no .maestro/orchestrator.pid -- no launcher has run here"
     fi
-    sess=$(tr -d '[:space:]' < "$W/.maestro/orchestrator-session" 2>/dev/null)
+    # `-r` and not `2>/dev/null` on the `tr`: the `<` fails before the redirection
+    # of stderr is set up, and printed "No such file" on every pod no launcher used.
+    sess=""
+    [ -r "$W/.maestro/orchestrator-session" ] && sess=$(tr -d '[:space:]' < "$W/.maestro/orchestrator-session")
     [ -n "$sess" ] && say "batch session" "$(printf '%s' "$sess" | cut -c1-8) -> batch $(batch_session_batch "$W/.maestro/orchestrator-sessions.log" "$sess" 2>/dev/null || echo '?')"
+
+    # --- the researcher's messages nobody has acted on -----------------------
+    # THE ROW 30 SEPTEMBER NEEDED NEXT. A message the platform acknowledged as
+    # "Queued" reached no conversation, and nothing here recorded it had been
+    # sent; the chat now writes every message to INBOX.md first (CHAT.md), and
+    # this row is what makes an unhandled one visible to whoever looks, whether
+    # chat, orchestrator or researcher. A WARNING, NEVER ATTENTION: exit 3 means a
+    # machine or a worker is owed, and a message is the batch close's to drain
+    # (docs/OPERATING.md section 1, step 8; state-check.sh fails a close that
+    # leaves one).
+    inbox="$W/orchestration/INBOX.md"
+    batch_inbox_scan "$inbox"
+    case $? in
+        0) if [ "$INBOX_NEW" -eq 0 ]; then
+               say "inbox" "ok -- 0 new of $INBOX_ENTRIES entries ($inbox)"
+           else
+               say "inbox" "warn -- $INBOX_NEW new of $INBOX_ENTRIES, oldest $INBOX_OLDEST (line $INBOX_OLDEST_LINE of $inbox): nobody has acted on it; a batch's close drains it"
+           fi ;;
+        1) say "inbox" "warn -- NOT READ, malformed: $INBOX_ERROR ($inbox; state-check.sh fails on this)" ;;
+        *) say "inbox" "none -- no $inbox" ;;
+    esac
 fi
 
 # --- branch locks and the latest verification -------------------------------
